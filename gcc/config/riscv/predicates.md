@@ -71,7 +71,7 @@
 {
   /* Don't handle multi-word moves this way; we don't want to introduce
      the individual word-mode moves until after reload.  */
-  if (GET_MODE_SIZE (mode) > UNITS_PER_WORD)
+  if (GET_MODE_SIZE (mode).to_constant () > UNITS_PER_WORD)
     return false;
 
   /* Check whether the constant can be loaded in a single
@@ -239,3 +239,17 @@
 (define_predicate "const63_operand"
   (and (match_code "const_int")
        (match_test "INTVAL (op) == 63")))
+
+;;  Added by me
+
+(define_special_predicate "p_reg_or_const_csr_operand"
+  (match_code "reg, subreg, const_int")
+{
+  if (CONST_INT_P (op))
+    return satisfies_constraint_K (op);
+  return GET_MODE (op) == Pmode;
+})
+
+(define_predicate "vector_reg_or_const0_operand"
+(ior (match_operand 0 "register_operand")
+(match_test "op == const0_rtx")))

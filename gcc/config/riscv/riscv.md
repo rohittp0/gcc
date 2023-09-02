@@ -45,6 +45,39 @@
 
   ;; Stack tie
   UNSPEC_TIE
+  ;; vle/vse/vlse/vsse.
+  ;; vluxei/vloxei/vsuxei/vsoxei.
+  ;; vleff.
+  ;; vlseg/vsseg/vlsegff.
+  ;; vlsseg/vssseg.
+  ;; vluxseg/vloxseg/vsuxseg/vsoxseg.
+  UNSPEC_UNIT_STRIDE_LOAD
+  UNSPEC_UNIT_STRIDE_STORE
+  UNSPEC_STRIDED_LOAD
+  UNSPEC_STRIDED_STORE
+  UNSPEC_UNORDER_INDEXED_LOAD
+  UNSPEC_ORDER_INDEXED_LOAD
+  UNSPEC_UNORDER_INDEXED_STORE
+  UNSPEC_ORDER_INDEXED_STORE
+  UNSPEC_FAULT_ONLY_FIRST_LOAD
+  UNSPEC_WHILE_LEN
+
+    ;; vsetvli.
+  UNSPEC_VSETVLI
+  ;; RVV instructions.
+  UNSPEC_RVV
+  ;; read vl.
+  UNSPEC_READVL
+  ;; reinterpret
+  UNSPEC_REINTERPRET
+  ;; lmul_ext
+  UNSPEC_LMUL_EXT
+  ;; lmul_trunc
+  UNSPEC_LMUL_TRUNC
+  ;; vec_duplicate
+  UNSPEC_VEC_DUPLICATE
+  ;; vector select
+  UNSPEC_SELECT
 ])
 
 (define_c_enum "unspecv" [
@@ -89,6 +122,9 @@
    (S9_REGNUM			25)
    (S10_REGNUM			26)
    (S11_REGNUM			27)
+
+   (VL_REGNUM			66)
+   (VTYPE_REGNUM			67)
 
    (NORMAL_RETURN		0)
    (SIBCALL_RETURN		1)
@@ -2066,7 +2102,7 @@
        (lshiftrt:GPR (match_dup 3) (match_dup 2)))]
 {
   /* Op2 is a VOIDmode constant, so get the mode size from op1.  */
-  operands[2] = GEN_INT (GET_MODE_BITSIZE (GET_MODE (operands[1]))
+  operands[2] = GEN_INT (GET_MODE_BITSIZE (GET_MODE (operands[1])).to_constant ()
 			 - exact_log2 (INTVAL (operands[2]) + 1));
 })
 
@@ -2862,6 +2898,36 @@
   ""
   "<load>\t%3, %1\;<load>\t%0, %2\;xor\t%0, %3, %0\;li\t%3, 0"
   [(set_attr "length" "12")])
+
+
+(define_expand "while_len<mode><mode>"
+  [(match_operand:X 0 "register_operand")
+   (match_operand:X 1 "p_reg_or_const_csr_operand")
+   (match_operand 2 "const_int_operand")
+   (match_operand 3 "")]
+  ""
+{
+  riscv_vector_expand_while_len (operands);
+  DONE;
+})
+
+(define_insn_and_split "*while_len<mode><mode>"
+  [(set (match_operand:X 0 "register_operand" "=&r")
+    (unspec:X
+      [(match_operand:X 1 "p_reg_or_const_csr_operand" "rK")
+       (match_operand:X 2 "const_int_operand" "i")
+       (match_operand:X 3 "")] UNSPEC_WHILE_LEN))]
+  ""
+  "#"
+  "&& 1"
+  [(const_int 0)]
+  {
+    /* We delay the emit of vsetvl instruction in order to
+       have the chance move the instructions which are depending
+       on VL/VTYPE outside the loop. */
+    riscv_vector_expand_while_len (operands);
+    DONE;
+  })
 
 (include "bitmanip.md")
 (include "sync.md")

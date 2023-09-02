@@ -291,3 +291,8 @@ riscv_atomic_assign_expand_fenv (tree *hold, tree *clear, tree *update)
   *clear = build_call_expr (fsflags, 1, old_flags);
   *update = NULL_TREE;
 }
+
+bool
+riscv_gimple_fold_builtin (gimple_stmt_iterator *gsi) {
+    return false;
+}

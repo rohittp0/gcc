@@ -67,6 +67,24 @@ enum stack_protector_guard {
   SSP_GLOBAL			/* global canary */
 };
 
+/* RVV vector register sizes.  */
+enum riscv_vector_bits_enum
+{
+    RVV_SCALABLE,
+    RVV_NOT_IMPLEMENTED = RVV_SCALABLE,
+    RVV_64 = 64,
+    RVV_128 = 128,
+    RVV_256 = 256,
+    RVV_512 = 512,
+    RVV_1024 = 1024,
+    RVV_2048 = 2048,
+    RVV_4096 = 4096,
+    RVV_8192 = 8192,
+    RVV_16384 = 16384,
+    RVV_32768 = 32768,
+    RVV_65536 = 65536
+};
+
 #define MASK_ZICSR    (1 << 0)
 #define MASK_ZIFENCEI (1 << 1)
 

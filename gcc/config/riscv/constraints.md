@@ -80,3 +80,8 @@
    A constant @code{move_operand}."
   (and (match_operand 0 "move_operand")
        (match_test "CONSTANT_P (op)")))
+
+;; Vector constraints.
+
+(define_register_constraint "vr" "TARGET_VECTOR ? V_REGS : NO_REGS"
+  "A vector register (if available).")

@@ -375,7 +375,9 @@ ASM_MISA_SPEC
    the frame pointer, the EH stack adjustment, or the EH data registers. */
 
 #define RISCV_PROLOGUE_TEMP_REGNUM (GP_TEMP_FIRST)
+#define RISCV_PROLOGUE_TEMP2_REGNUM (GP_TEMP_FIRST + 1)
 #define RISCV_PROLOGUE_TEMP(MODE) gen_rtx_REG (MODE, RISCV_PROLOGUE_TEMP_REGNUM)
+#define RISCV_PROLOGUE_TEMP2(MODE) gen_rtx_REG (MODE, RISCV_PROLOGUE_TEMP2_REGNUM)
 
 #define RISCV_CALL_ADDRESS_TEMP_REGNUM (GP_TEMP_FIRST + 1)
 #define RISCV_CALL_ADDRESS_TEMP(MODE) \
@@ -431,6 +433,7 @@ enum reg_class
   FP_REGS,			/* floating-point registers */
   FRAME_REGS,			/* arg pointer and frame pointer */
   ALL_REGS,			/* all registers */
+  V_REGS,
   LIM_REG_CLASSES		/* max value + 1 */
 };
 
@@ -952,6 +955,10 @@ while (0)
 extern const enum reg_class riscv_regno_to_class[];
 extern bool riscv_slow_unaligned_access_p;
 extern unsigned riscv_stack_boundary;
+extern poly_uint_for_mode riscv_vector_chunks;
+/* The number of bits and bytes in a RVV vector.  */
+#define BITS_PER_RISCV_VECTOR (poly_uint_for_mode (riscv_vector_chunks * 64))
+#define BYTES_PER_RISCV_VECTOR (poly_uint_for_mode (riscv_vector_chunks * 8))
 #endif
 
 #define ASM_PREFERRED_EH_DATA_FORMAT(CODE,GLOBAL) \
@@ -1005,5 +1012,7 @@ extern void riscv_remove_unneeded_save_restore_calls (void);
   ((VALUE) = GET_MODE_UNIT_BITSIZE (MODE), 2)
 #define CTZ_DEFINED_VALUE_AT_ZERO(MODE, VALUE) \
   ((VALUE) = GET_MODE_UNIT_BITSIZE (MODE), 2)
+
+#define TARGET_SUPPORTS_WIDE_INT 1
 
 #endif /* ! GCC_RISCV_H */
