@@ -45,39 +45,8 @@
 
   ;; Stack tie
   UNSPEC_TIE
-  ;; vle/vse/vlse/vsse.
-  ;; vluxei/vloxei/vsuxei/vsoxei.
-  ;; vleff.
-  ;; vlseg/vsseg/vlsegff.
-  ;; vlsseg/vssseg.
-  ;; vluxseg/vloxseg/vsuxseg/vsoxseg.
-  UNSPEC_UNIT_STRIDE_LOAD
-  UNSPEC_UNIT_STRIDE_STORE
-  UNSPEC_STRIDED_LOAD
-  UNSPEC_STRIDED_STORE
-  UNSPEC_UNORDER_INDEXED_LOAD
-  UNSPEC_ORDER_INDEXED_LOAD
-  UNSPEC_UNORDER_INDEXED_STORE
-  UNSPEC_ORDER_INDEXED_STORE
-  UNSPEC_FAULT_ONLY_FIRST_LOAD
-  UNSPEC_WHILE_LEN
 
-    ;; vsetvli.
-  UNSPEC_VSETVLI
-  ;; RVV instructions.
-  UNSPEC_RVV
-  ;; read vl.
-  UNSPEC_READVL
-  ;; reinterpret
-  UNSPEC_REINTERPRET
-  ;; lmul_ext
-  UNSPEC_LMUL_EXT
-  ;; lmul_trunc
-  UNSPEC_LMUL_TRUNC
-  ;; vec_duplicate
-  UNSPEC_VEC_DUPLICATE
-  ;; vector select
-  UNSPEC_SELECT
+  UNSPEC_VLE32
 ])
 
 (define_c_enum "unspecv" [
@@ -1728,7 +1697,7 @@
 	(match_operand:QI 1 "move_operand"         " r,I,m,rJ,*r*J,*f"))]
   "(register_operand (operands[0], QImode)
     || reg_or_0_operand (operands[1], QImode))"
-  { return riscv_output_move (operands[0], operands[1]); }
+  z
   [(set_attr "move_type" "move,const,load,store,mtc,mfc")
    (set_attr "mode" "QI")])
 
@@ -2899,35 +2868,13 @@
   "<load>\t%3, %1\;<load>\t%0, %2\;xor\t%0, %3, %0\;li\t%3, 0"
   [(set_attr "length" "12")])
 
-
-(define_expand "while_len<mode><mode>"
-  [(match_operand:X 0 "register_operand")
-   (match_operand:X 1 "p_reg_or_const_csr_operand")
-   (match_operand 2 "const_int_operand")
-   (match_operand 3 "")]
+(define_insn "*vle32"
+  [(set (match_operand:QI 0 "register_operand" "=r,r,r, m,  *f,*f,*r,*m")
+    (match_operand:QI 1 "memory_operand" " r,T,m,rJ,*r*J,*m,*f,*f"))]
   ""
-{
-  riscv_vector_expand_while_len (operands);
-  DONE;
-})
-
-(define_insn_and_split "*while_len<mode><mode>"
-  [(set (match_operand:X 0 "register_operand" "=&r")
-    (unspec:X
-      [(match_operand:X 1 "p_reg_or_const_csr_operand" "rK")
-       (match_operand:X 2 "const_int_operand" "i")
-       (match_operand:X 3 "")] UNSPEC_WHILE_LEN))]
-  ""
-  "#"
-  "&& 1"
-  [(const_int 0)]
-  {
-    /* We delay the emit of vsetvl instruction in order to
-       have the chance move the instructions which are depending
-       on VL/VTYPE outside the loop. */
-    riscv_vector_expand_while_len (operands);
-    DONE;
-  })
+  "vle.q %0, (%1)"
+  [(set_attr "move_type" "move,const,load,store,mtc,fpload,mfc,fpstore")
+    (set_attr "mode" "QI")])
 
 (include "bitmanip.md")
 (include "sync.md")
