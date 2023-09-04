@@ -1697,7 +1697,7 @@
 	(match_operand:QI 1 "move_operand"         " r,I,m,rJ,*r*J,*f"))]
   "(register_operand (operands[0], QImode)
     || reg_or_0_operand (operands[1], QImode))"
-  z
+  { return TARGET_64BIT ? "add%i2w\t%0,%1,%2" : "add%i2\t%0,%1,%2"; }
   [(set_attr "move_type" "move,const,load,store,mtc,mfc")
    (set_attr "mode" "QI")])
 
