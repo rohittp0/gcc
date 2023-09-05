@@ -41,15 +41,27 @@
 
 (define_peephole2
   [(set (match_operand:SI 0 "nonimmediate_operand")
-          (match_operand:SI 1 "move_operand"))
-     (set (match_operand:SI 2 "nonimmediate_operand")
-          (match_operand:SI 3 "move_operand"))
-     (set (match_operand:SI 4 "nonimmediate_operand")
-          (match_operand:SI 5 "move_operand"))
-     (set (match_operand:SI 6 "nonimmediate_operand")
-          (match_operand:SI 7 "move_operand"))]
+        (match_operand:SI 1 "move_operand"))
+   (set (match_operand:SI 2 "nonimmediate_operand")
+        (match_operand:SI 3 "move_operand"))
+   (set (match_operand:SI 4 "nonimmediate_operand")
+        (match_operand:SI 5 "move_operand"))
+   (set (match_operand:SI 6 "nonimmediate_operand")
+        (match_operand:SI 7 "move_operand"))]
   ""
-    [(set (match_operand:QI 0 "qi_register_operand") (match_operand:QI 1 "qi_memory_operand"))]
+    [(set (match_dup 0)
+        (plus:SI (match_dup 1)
+            (plus:SI (match_dup 2)
+                (plus:SI (match_dup 3)
+                    (plus:SI (match_dup 4)
+                        (plus:SI (match_dup 5)
+                            (plus:SI (match_dup 6) (match_dup 7))
+                        )
+                    )
+                )
+            )
+        )
+    )]
 )
 
 

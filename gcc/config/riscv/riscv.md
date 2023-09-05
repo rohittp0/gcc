@@ -2869,12 +2869,18 @@
   [(set_attr "length" "12")])
 
 (define_insn "*vle32"
-  [(set (match_operand:QI 0 "register_operand" "=r,r,r, m,  *f,*f,*r,*m")
-    (match_operand:QI 1 "memory_operand" " r,T,m,rJ,*r*J,*m,*f,*f"))]
+  [(set (match_operand:SI 0 "" "")
+        (plus:SI (match_operand:SI 1 "" "")
+                 (plus:SI (match_operand:SI 2 "" "")
+                          (plus:SI (match_operand:SI 3 "" "")
+                                   (plus:SI (match_operand:SI 4 "" "")
+                                            (plus:SI (match_operand:SI 5 "" "")
+                                                     (plus:SI (match_operand:SI 6 "" "")
+                                                               (match_operand:SI 7 "" ""))))))))]
   ""
-  "vle.q %0, (%1)"
-  [(set_attr "move_type" "move,const,load,store,mtc,fpload,mfc,fpstore")
-    (set_attr "mode" "QI")])
+  { return riscv_output_vector_move (operands[0], operands[1]); }
+)
+
 
 (include "bitmanip.md")
 (include "sync.md")

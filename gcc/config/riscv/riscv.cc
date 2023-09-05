@@ -5672,6 +5672,26 @@ riscv_asan_shadow_offset (void)
   return TARGET_64BIT ? (HOST_WIDE_INT_1 << 29) : 0;
 }
 
+const char *
+riscv_output_vector_move (rtx dest, rtx src)
+{
+    enum rtx_code dest_code, src_code;
+
+    dest_code = GET_CODE (dest);
+    src_code = GET_CODE (src);
+
+    if (dest_code == REG && src_code == MEM)
+        return "vle.128\t%0,%1";
+    else if (src_code == REG && dest_code == MEM)
+        return "vse.128\t%z1,%0";
+    else if (src_code == REG && dest_code == REG)
+        return "vmv.128\t%0,%1";
+    else
+        return "mv %0,%1 ; unknown_vector_move";
+
+    gcc_unreachable ();
+}
+
 /* Initialize the GCC target structure.  */
 #undef TARGET_ASM_ALIGNED_HI_OP
 #define TARGET_ASM_ALIGNED_HI_OP "\t.half\t"
