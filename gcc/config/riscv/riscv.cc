@@ -5692,6 +5692,24 @@ riscv_output_vector_move (rtx dest, rtx src)
     gcc_unreachable ();
 }
 
+int
+check_if_same (rtx op1, rtx op2, rtx op3, rtx op4)
+{
+    if(REGNO(op1) == REGNO (op2) && REGNO (op1) == REGNO (op3) && REGNO (op1) == REGNO (op4))
+        return true;
+
+    unsigned int base1 = REGNO (XEXP (op1, 0)); // Get the base register of op1
+    unsigned int base2 = REGNO (XEXP (op2, 0)); // Get the base register of op2
+    unsigned int base3 = REGNO (XEXP (op3, 0)); // Get the base register of op3
+    unsigned int base4 = REGNO (XEXP (op4, 0)); // Get the base register of op4
+
+    if (base1 == base2 && base1 == base3 && base1 == base4) {
+        return true;
+    }
+
+    return false; // Different base registers
+}
+
 /* Initialize the GCC target structure.  */
 #undef TARGET_ASM_ALIGNED_HI_OP
 #define TARGET_ASM_ALIGNED_HI_OP "\t.half\t"

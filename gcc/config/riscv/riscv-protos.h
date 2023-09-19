@@ -54,6 +54,7 @@ extern bool riscv_split_64bit_move_p (rtx, rtx);
 extern void riscv_split_doubleword_move (rtx, rtx);
 extern const char *riscv_output_move (rtx, rtx);
 extern const char *riscv_output_vector_move (rtx, rtx);
+extern int check_if_same (rtx, rtx, rtx, rtx);
 extern const char *riscv_output_return ();
 #ifdef RTX_CODE
 extern void riscv_expand_int_scc (rtx, enum rtx_code, rtx, rtx);

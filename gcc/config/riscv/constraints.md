@@ -83,5 +83,5 @@
 
 ;; Vector constraints.
 
-(define_register_constraint "vr" "TARGET_VECTOR ? V_REGS : NO_REGS"
-  "A vector register (if available).")
+(define_register_constraint "v" "V_REGS"
+    "Vector registers suitable for V4SI mode.")

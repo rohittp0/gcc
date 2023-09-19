@@ -2868,17 +2868,13 @@
   "<load>\t%3, %1\;<load>\t%0, %2\;xor\t%0, %3, %0\;li\t%3, 0"
   [(set_attr "length" "12")])
 
-(define_insn "*vle32"
-  [(set (match_operand:SI 0 "" "")
-        (plus:SI (match_operand:SI 1 "" "")
-                 (plus:SI (match_operand:SI 2 "" "")
-                          (plus:SI (match_operand:SI 3 "" "")
-                                   (plus:SI (match_operand:SI 4 "" "")
-                                            (plus:SI (match_operand:SI 5 "" "")
-                                                     (plus:SI (match_operand:SI 6 "" "")
-                                                               (match_operand:SI 7 "" ""))))))))]
+(define_insn "load_quadword_vector"
+  [(set (match_operand:V4SI 0 "register_operand" "=v")
+        (mem:V4SI (plus:SI (match_operand:SI 1 "register_operand" "0")
+                         (const_int 0))))]
   ""
-  { return riscv_output_vector_move (operands[0], operands[1]); }
+  "lw128 %0, %1"
+  [(set_attr "type" "load")]
 )
 
 
