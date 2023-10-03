@@ -4112,6 +4112,81 @@ peep2_fill_buffer (basic_block bb, rtx_insn *insn, regset live)
   return true;
 }
 
+static bool
+is_load_insn (rtx_insn *insn)
+{
+    if (!INSN_P (insn))
+        return false;
+
+    rtx pat = PATTERN (insn);
+    return (GET_CODE (pat) == SET && MEM_P (SET_SRC (pat)));
+}
+
+rtx_insn *
+hoist_loads_to_top (rtx_insn *first_insn)
+{
+    rtx_insn *load = NULL;
+    rtx_insn *non_load = NULL;
+    rtx_insn *non_load_first = NULL;
+    rtx_insn *load_first = NULL;
+
+    return first_insn;
+
+    for (rtx_insn *insn = first_insn; insn; insn = NEXT_INSN (insn))
+    {
+        /*
+         * SET_NEXT_INSN (insn) = rtx_insn *next;
+         * SET_PREV_INSN (insn) = rtx_insn *prev;
+         */
+        if (is_load_insn (insn))
+        {
+            if(load) {
+                SET_NEXT_INSN(load) = insn;
+                SET_PREV_INSN(insn) = load;
+                load = insn;
+            }
+            else
+                load_first = load = insn;
+        }
+        else
+        {
+            if(non_load)
+            {
+                SET_NEXT_INSN(non_load) = insn;
+                SET_PREV_INSN(insn) = non_load;
+                non_load = insn;
+            }
+            else
+                non_load_first = non_load = insn;
+
+        }
+    }
+
+    // Connect the last load to the first non-load
+    if (load && non_load)
+    {
+        SET_NEXT_INSN(load) = non_load_first;
+        SET_PREV_INSN(non_load_first) = load;
+        SET_NEXT_INSN(non_load) = NULL;
+        SET_PREV_INSN(load_first) = NULL;
+    }
+    else if(load)
+        SET_NEXT_INSN(load) = NULL;
+
+    return load ? load_first : first_insn;
+}
+
+static void
+hoist_loads (void)
+{
+    basic_block bb;
+    FOR_EACH_BB_FN (bb, cfun)
+    {
+        rtx_insn *first_insn = BB_HEAD (bb);
+        hoist_loads_to_top (first_insn);
+    }
+}
+
 /* Perform the peephole2 optimization pass.  */
 
 static void
@@ -4323,14 +4398,62 @@ if_test_bypass_p (rtx_insn *out_insn, rtx_insn *in_insn)
 
   return true;
 }
-
+
+static unsigned int
+rest_of_handle_hoist_loads (void)
+{
+    hoist_loads ();
+    return 0;
+}
+
+namespace {
+    const pass_data pass_data_hoist_loads =
+            {
+                    RTL_PASS, /* type */
+                    "hoistLoads", /* name */
+                    OPTGROUP_NONE, /* optinfo_flags */
+                    TV_HOIST_LOADS, /* tv_id */
+                    0, /* properties_required */
+                    0, /* properties_provided */
+                    0, /* properties_destroyed */
+                    0, /* todo_flags_start */
+                    TODO_df_finish, /* todo_flags_finish */
+            };
+
+    class pass_hoist_loads : public rtl_opt_pass
+    {
+    public:
+        pass_hoist_loads (gcc::context *ctxt)
+                : rtl_opt_pass (pass_data_hoist_loads, ctxt)
+        {}
+
+        /* opt_pass methods: */
+        /* The epiphany backend creates a second instance of this pass, so we need
+           a clone method.  */
+        opt_pass * clone () { return new pass_hoist_loads (m_ctxt); }
+        virtual bool gate (function *) { return true; }
+        virtual unsigned int execute (function *)
+        {
+            return rest_of_handle_hoist_loads ();
+        }
+
+    }; // class pass_hoist_loads
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_hoist_loads (gcc::context *ctxt)
+{
+    return new pass_hoist_loads (ctxt);
+}
+
 static unsigned int
 rest_of_handle_peephole2 (void)
 {
-  if (HAVE_peephole2)
-    peephole2_optimize ();
+    if (HAVE_peephole2)
+        peephole2_optimize ();
 
-  return 0;
+    return 0;
 }
 
 namespace {

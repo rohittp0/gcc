@@ -38,3 +38,4 @@
 {
   operands[5] = GEN_INT (INTVAL (operands[2]) - INTVAL (operands[5]));
 })
+
