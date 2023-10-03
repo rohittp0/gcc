@@ -21,4 +21,6 @@ along with GCC; see the file COPYING3.  If not see
 
 FLOAT_MODE (TF, 16, ieee_quad_format);
 
+VECTOR_MODE (INT, MODE_VECTOR_INT, 4);
+
 #define NUM_POLY_INT_COEFFS 2

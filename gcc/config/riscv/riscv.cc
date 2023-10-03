@@ -278,6 +278,7 @@ const enum reg_class riscv_regno_to_class[FIRST_PSEUDO_REGISTER] = {
   FP_REGS,	FP_REGS,	FP_REGS,	FP_REGS,
   FP_REGS,	FP_REGS,	FP_REGS,	FP_REGS,
   FRAME_REGS,	FRAME_REGS,
+  V_REGS, V_REGS, V_REGS, V_REGS
 };
 
 /* Costs to use when optimizing for rocket.  */

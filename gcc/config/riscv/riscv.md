@@ -2929,6 +2929,20 @@
     DONE;
   })
 
+;; vload instruction
+(define_insn "vload"
+  [(set (match_operand:VECTOR_INT 0 "register_operand" "=r")
+        (mem:V (match_operand:SI 1 "memory_operand" "m")))]
+  ""
+  "vload %0, %1")
+
+;; vstore instruction
+(define_insn "vstore"
+  [(set (mem:V (match_operand:SI 0 "memory_operand" "m"))
+        (match_operand:VECTOR_INT 1 "register_operand" "r"))]
+  ""
+  "vstore %1, %0")
+
 (include "bitmanip.md")
 (include "sync.md")
 (include "peephole.md")

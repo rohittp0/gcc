@@ -291,7 +291,14 @@ ASM_MISA_SPEC
 	- ARG_POINTER_REGNUM
 	- FRAME_POINTER_REGNUM */
 
-#define FIRST_PSEUDO_REGISTER 66
+#define FIRST_PSEUDO_REGISTER 70
+
+#define FIRST_VECTOR_REGISTER 66  // Assuming r0-r33 are already used.
+#define LAST_VECTOR_REGISTER 69
+#define V0_REGNO 66
+#define V1_REGNO 67
+#define V2_REGNO 68
+#define V3_REGNO 69
 
 /* x0, sp, gp, and tp are fixed.  */
 
@@ -429,11 +436,11 @@ enum reg_class
   NO_REGS,			/* no registers in set */
   SIBCALL_REGS,			/* registers used by indirect sibcalls */
   JALR_REGS,			/* registers used by indirect calls */
+  V_REGS,
   GR_REGS,			/* integer registers */
   FP_REGS,			/* floating-point registers */
   FRAME_REGS,			/* arg pointer and frame pointer */
   ALL_REGS,			/* all registers */
-  V_REGS,
   LIM_REG_CLASSES		/* max value + 1 */
 };
 
@@ -450,6 +457,7 @@ enum reg_class
   "NO_REGS",								\
   "SIBCALL_REGS",							\
   "JALR_REGS",								\
+  "V_REGS",                                 \
   "GR_REGS",								\
   "FP_REGS",								\
   "FRAME_REGS",								\
@@ -471,11 +479,12 @@ enum reg_class
 {									\
   { 0x00000000, 0x00000000, 0x00000000 },	/* NO_REGS */		\
   { 0xf003fcc0, 0x00000000, 0x00000000 },	/* SIBCALL_REGS */	\
-  { 0xffffffc0, 0x00000000, 0x00000000 },	/* JALR_REGS */		\
+  { 0xffffffc0, 0x00000000, 0x00000000 },	/* JALR_REGS */     \
+  { 0x00000000, 0x00000000, 0x0000003c },                       \
   { 0xffffffff, 0x00000000, 0x00000000 },	/* GR_REGS */		\
   { 0x00000000, 0xffffffff, 0x00000000 },	/* FP_REGS */		\
   { 0x00000000, 0x00000000, 0x00000003 },	/* FRAME_REGS */	\
-  { 0xffffffff, 0xffffffff, 0x00000003 }	/* ALL_REGS */		\
+  { 0xffffffff, 0xffffffff, 0x0000003f }	/* ALL_REGS */		\
 }
 
 /* A C expression whose value is a register class containing hard
@@ -503,7 +512,9 @@ enum reg_class
    call-saved ones.  (IRA expects this.)  */
 
 #define REG_ALLOC_ORDER							\
-{ \
+{                             \
+  /* Vector Registers */                            \
+  66, 67, 68, 69,                            \
   /* Call-clobbered GPRs.  */						\
   15, 14, 13, 12, 11, 10, 16, 17, 6, 28, 29, 30, 31, 5, 7, 1,		\
   /* Call-saved GPRs.  */						\
@@ -780,7 +791,7 @@ typedef struct {
   "fs0", "fs1", "fa0", "fa1", "fa2", "fa3", "fa4", "fa5",	\
   "fa6", "fa7", "fs2", "fs3", "fs4", "fs5", "fs6", "fs7",	\
   "fs8", "fs9", "fs10","fs11","ft8", "ft9", "ft10","ft11",	\
-  "arg", "frame", }
+  "arg", "frame", "v0", "v1", "v2", "v3" }
 
 #define ADDITIONAL_REGISTER_NAMES					\
 {									\
@@ -848,6 +859,10 @@ typedef struct {
   { "f29",	29 + FP_REG_FIRST },					\
   { "f30",	30 + FP_REG_FIRST },					\
   { "f31",	31 + FP_REG_FIRST },					\
+  { "v0",   0 + FIRST_VECTOR_REGISTER },            \
+  { "v1",   1 + FIRST_VECTOR_REGISTER },            \
+  { "v2",   2 + FIRST_VECTOR_REGISTER },            \
+  { "v3",   3 + FIRST_VECTOR_REGISTER },            \
 }
 
 /* Globalizing directive for a label.  */
