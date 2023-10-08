@@ -357,7 +357,7 @@ insn_invalid_p (rtx_insn *insn, bool in_group)
      clobbers.  */
   int icode = recog (pat, insn,
 		     (GET_CODE (pat) == SET
-		      && ! reload_completed 
+		      && ! reload_completed
                       && ! reload_in_progress)
 		     ? &num_clobbers : 0);
   int is_asm = icode < 0 && asm_noperands (PATTERN (insn)) >= 0;
@@ -1506,7 +1506,7 @@ general_operand (rtx op, machine_mode mode)
 	     integer modes need the same number of hard registers, the
 	     size of floating point mode can be less than the integer
 	     mode.  */
-	  && ! lra_in_progress 
+	  && ! lra_in_progress
 	  && paradoxical_subreg_p (op))
 	return false;
 
@@ -3016,7 +3016,7 @@ preprocess_constraints (rtx_insn *insn)
    the routines that determine an insn's attribute.
 
    If STRICT is a positive nonzero value, it means that we have been
-   called after reload has been completed.  In that case, we must
+   called after reload has been comleted.  In that case, we must
    do all checks strictly.  If it is zero, it means that we have been called
    before reload has completed.  In that case, we first try to see if we can
    find an alternative that matches strictly.  If not, we try again, this
@@ -3368,7 +3368,7 @@ reg_fits_class_p (const_rtx operand, reg_class_t cl, int offset,
   /* Regno must not be a pseudo register.  Offset may be negative.  */
   return (HARD_REGISTER_NUM_P (regno)
 	  && HARD_REGISTER_NUM_P (regno + offset)
-	  && in_hard_reg_set_p (reg_class_contents[(int) cl], mode, 
+	  && in_hard_reg_set_p (reg_class_contents[(int) cl], mode,
 				regno + offset));
 }
 
@@ -4113,7 +4113,7 @@ peep2_fill_buffer (basic_block bb, rtx_insn *insn, regset live)
 }
 
 static bool
-is_load_insn (rtx_insn *insn)
+load_insn_p (rtx_insn *insn)
 {
     if (!INSN_P (insn))
         return false;
@@ -4122,68 +4122,84 @@ is_load_insn (rtx_insn *insn)
     return (GET_CODE (pat) == SET && MEM_P (SET_SRC (pat)));
 }
 
-rtx_insn *
-hoist_loads_to_top (rtx_insn *first_insn)
+static bool
+store_insn_p (rtx_insn *insn)
 {
-    rtx_insn *load = NULL;
-    rtx_insn *non_load = NULL;
-    rtx_insn *non_load_first = NULL;
-    rtx_insn *load_first = NULL;
+    if (!INSN_P (insn))
+        return false;
 
-    return first_insn;
-
-    for (rtx_insn *insn = first_insn; insn; insn = NEXT_INSN (insn))
-    {
-        /*
-         * SET_NEXT_INSN (insn) = rtx_insn *next;
-         * SET_PREV_INSN (insn) = rtx_insn *prev;
-         */
-        if (is_load_insn (insn))
-        {
-            if(load) {
-                SET_NEXT_INSN(load) = insn;
-                SET_PREV_INSN(insn) = load;
-                load = insn;
-            }
-            else
-                load_first = load = insn;
-        }
-        else
-        {
-            if(non_load)
-            {
-                SET_NEXT_INSN(non_load) = insn;
-                SET_PREV_INSN(insn) = non_load;
-                non_load = insn;
-            }
-            else
-                non_load_first = non_load = insn;
-
-        }
-    }
-
-    // Connect the last load to the first non-load
-    if (load && non_load)
-    {
-        SET_NEXT_INSN(load) = non_load_first;
-        SET_PREV_INSN(non_load_first) = load;
-        SET_NEXT_INSN(non_load) = NULL;
-        SET_PREV_INSN(load_first) = NULL;
-    }
-    else if(load)
-        SET_NEXT_INSN(load) = NULL;
-
-    return load ? load_first : first_insn;
+    rtx pat = PATTERN (insn);
+    return (GET_CODE (pat) == SET && MEM_P (SET_DEST (pat)));
 }
 
 static void
-hoist_loads (void)
+hoist_loads ()
 {
-    basic_block bb;
-    FOR_EACH_BB_FN (bb, cfun)
+  basic_block bb;
+  rtx_insn *insn, *next_insn;
+  rtx reg_operands_st[40], mem_operands_st[40];
+  rtx reg_operands_ld[40], mem_operands_ld[40];
+  int sw_count = 0;
+  int ld_count = 0;
+
+  FOR_EACH_BB_FN (bb, cfun)
     {
-        rtx_insn *first_insn = BB_HEAD (bb);
-        hoist_loads_to_top (first_insn);
+      rtx_insn *last_insn = BB_END (bb);
+      FOR_BB_INSNS (bb, insn)
+        {
+          if (store_insn_p (insn))
+            {
+              rtx pat = PATTERN (insn);
+              /* Capture the operands from the sw instruction */
+              reg_operands_st[sw_count] = SET_DEST (pat);
+              mem_operands_st[sw_count] = SET_SRC (pat);
+              sw_count++;
+
+              /* Delete the sw instruction */
+              next_insn = NEXT_INSN (insn);
+              df_insn_delete (insn);
+              remove_insn (insn);
+              insn->set_deleted ();
+              insn = next_insn;
+            }
+            else if (load_insn_p (insn))
+                        {
+                          rtx pat = PATTERN (insn);
+                          /* Capture the operands from the lw instruction */
+                          reg_operands_ld[ld_count] = SET_DEST (pat);
+                          mem_operands_ld[ld_count] = SET_SRC (pat);
+                          ld_count++;
+
+                          /* Delete the lw instruction */
+                          next_insn = NEXT_INSN (insn);
+                          df_insn_delete (insn);
+                          remove_insn (insn);
+                          insn->set_deleted ();
+                          insn = next_insn;
+                        }
+        }
+
+      if (sw_count >= 4)
+        {
+          for (int i = 0; i < sw_count; i += 4)
+          {
+            rtx_insn *vse_insn = as_a <rtx_insn *> (
+              gen_vse (mem_operands_st[i], reg_operands_st[i],
+                      reg_operands_st[i + 1], reg_operands_st[i + 2], reg_operands_st[i + 3]));
+            emit_insn_before(vse_insn, BB_END (bb));
+          }
+        }
+
+        if (ld_count >= 4)
+                {
+                  for (int i = 0; i < ld_count; i += 4)
+                  {
+                    rtx_insn *vle_insn = as_a <rtx_insn *> (
+                      gen_vle (reg_operands_ld[i],mem_operands_ld[i],
+                              reg_operands_ld[i + 1], reg_operands_ld[i + 2], reg_operands_ld[i + 3]));
+                    emit_insn_after(vle_insn, BB_HEAD (bb));
+                  }
+                }
     }
 }
 
@@ -4410,7 +4426,7 @@ namespace {
     const pass_data pass_data_hoist_loads =
             {
                     RTL_PASS, /* type */
-                    "hoistLoads", /* name */
+                    "hoist_loads", /* name */
                     OPTGROUP_NONE, /* optinfo_flags */
                     TV_HOIST_LOADS, /* tv_id */
                     0, /* properties_required */

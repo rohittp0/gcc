@@ -2868,15 +2868,25 @@
   "<load>\t%3, %1\;<load>\t%0, %2\;xor\t%0, %3, %0\;li\t%3, 0"
   [(set_attr "length" "12")])
 
-(define_insn "load_quadword_vector"
-  [(set (match_operand:V4SI 0 "register_operand" "=v")
-        (mem:V4SI (plus:SI (match_operand:SI 1 "register_operand" "0")
-                         (const_int 0))))]
+(define_insn "vse"
+  [(set (match_operand:SI 0 "memory_operand" "=m")
+        (unspec:SI [(match_operand:SI 1 "register_operand" "r")
+                    (match_operand:SI 2 "register_operand" "r")
+                    (match_operand:SI 3 "register_operand" "r")
+                    (match_operand:SI 4 "register_operand" "r")] UNSPEC_SSP_TEST))]
   ""
-  "lw128 %0, %1"
-  [(set_attr "type" "load")]
+  "vse %0, %4"
 )
 
+(define_insn "vle"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (unspec:SI [(match_operand:SI 1 "memory_operand" "m")
+                    (match_operand:SI 2 "register_operand" "r")
+                    (match_operand:SI 3 "register_operand" "r")
+                    (match_operand:SI 4 "register_operand" "r")] UNSPEC_SSP_TEST))]
+  ""
+  "vle %0, %1"
+)
 
 (include "bitmanip.md")
 (include "sync.md")
