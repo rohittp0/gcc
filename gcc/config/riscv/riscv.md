@@ -46,7 +46,8 @@
   ;; Stack tie
   UNSPEC_TIE
 
-  UNSPEC_VLE32
+  UNSPEC_VLE 
+  UNSPEC_VSE
 ])
 
 (define_c_enum "unspecv" [
@@ -2873,7 +2874,7 @@
         (unspec:SI [(match_operand:SI 1 "register_operand" "r")
                     (match_operand:SI 2 "register_operand" "r")
                     (match_operand:SI 3 "register_operand" "r")
-                    (match_operand:SI 4 "register_operand" "r")] UNSPEC_SSP_TEST))]
+                    (match_operand:SI 4 "register_operand" "r")] UNSPEC_VSE))]
   ""
   "vse %0, %4"
 )
@@ -2883,7 +2884,7 @@
         (unspec:SI [(match_operand:SI 1 "memory_operand" "m")
                     (match_operand:SI 2 "register_operand" "r")
                     (match_operand:SI 3 "register_operand" "r")
-                    (match_operand:SI 4 "register_operand" "r")] UNSPEC_SSP_TEST))]
+                    (match_operand:SI 4 "register_operand" "r")] UNSPEC_VLE))]
   ""
   "vle %0, %1"
 )

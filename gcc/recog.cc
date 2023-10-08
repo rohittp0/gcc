@@ -4143,64 +4143,58 @@ hoist_loads ()
   int ld_count = 0;
 
   FOR_EACH_BB_FN (bb, cfun)
+  {
+    rtx_insn *last_insn = BB_END (bb);
+    FOR_BB_INSNS (bb, insn)
     {
-      rtx_insn *last_insn = BB_END (bb);
-      FOR_BB_INSNS (bb, insn)
-        {
-          if (store_insn_p (insn))
-            {
-              rtx pat = PATTERN (insn);
-              /* Capture the operands from the sw instruction */
-              reg_operands_st[sw_count] = SET_DEST (pat);
-              mem_operands_st[sw_count] = SET_SRC (pat);
-              sw_count++;
+      if (store_insn_p (insn))
+      {
+        rtx pat = PATTERN (insn);
+        /* Capture the operands from the sw instruction */
+        reg_operands_st[sw_count] = SET_SRC (pat);
+        mem_operands_st[sw_count] = SET_DEST (pat);
+        sw_count++;
 
-              /* Delete the sw instruction */
-              next_insn = NEXT_INSN (insn);
-              df_insn_delete (insn);
-              remove_insn (insn);
-              insn->set_deleted ();
-              insn = next_insn;
-            }
-            else if (load_insn_p (insn))
-                        {
-                          rtx pat = PATTERN (insn);
-                          /* Capture the operands from the lw instruction */
-                          reg_operands_ld[ld_count] = SET_DEST (pat);
-                          mem_operands_ld[ld_count] = SET_SRC (pat);
-                          ld_count++;
+        df_insn_delete (insn);
+        remove_insn (insn);
+        insn->set_deleted ();
+      }
+      else if (load_insn_p (insn))
+      {
+        rtx pat = PATTERN (insn);
+        /* Capture the operands from the lw instruction */
+        reg_operands_ld[ld_count] = SET_DEST (pat);
+        mem_operands_ld[ld_count] = SET_SRC (pat);
+        ld_count++;
 
-                          /* Delete the lw instruction */
-                          next_insn = NEXT_INSN (insn);
-                          df_insn_delete (insn);
-                          remove_insn (insn);
-                          insn->set_deleted ();
-                          insn = next_insn;
-                        }
-        }
-
-      if (sw_count >= 4)
-        {
-          for (int i = 0; i < sw_count; i += 4)
-          {
-            rtx_insn *vse_insn = as_a <rtx_insn *> (
-              gen_vse (mem_operands_st[i], reg_operands_st[i],
-                      reg_operands_st[i + 1], reg_operands_st[i + 2], reg_operands_st[i + 3]));
-            emit_insn_before(vse_insn, BB_END (bb));
-          }
-        }
-
-        if (ld_count >= 4)
-                {
-                  for (int i = 0; i < ld_count; i += 4)
-                  {
-                    rtx_insn *vle_insn = as_a <rtx_insn *> (
-                      gen_vle (reg_operands_ld[i],mem_operands_ld[i],
-                              reg_operands_ld[i + 1], reg_operands_ld[i + 2], reg_operands_ld[i + 3]));
-                    emit_insn_after(vle_insn, BB_HEAD (bb));
-                  }
-                }
+        df_insn_delete (insn);
+        remove_insn (insn);
+        insn->set_deleted ();
+      }
     }
+
+    if (ld_count >= 4)
+    {
+      for (int i = 0; i < ld_count; i += 4)
+      {
+        rtx_insn *vle_insn = as_a <rtx_insn *> (
+            gen_vle (reg_operands_ld[i],mem_operands_ld[i],
+                     reg_operands_ld[i + 1], reg_operands_ld[i + 2], reg_operands_ld[i + 3]));
+        emit_insn_after(vle_insn, BB_HEAD (bb));
+      }
+    }
+
+    if (sw_count >= 4)
+    {
+      for (int i = 0; i < sw_count; i += 4)
+      {
+        rtx_insn *vse_insn = as_a <rtx_insn *> (
+            gen_vse (mem_operands_st[i], reg_operands_st[i],
+                     reg_operands_st[i + 1], reg_operands_st[i + 2], reg_operands_st[i + 3]));
+        emit_insn_before(vse_insn, BB_END (bb));
+      }
+    }
+  }
 }
 
 /* Perform the peephole2 optimization pass.  */
