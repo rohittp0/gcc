@@ -41,6 +41,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "reload.h"
 #include "tree-pass.h"
 #include "function-abi.h"
+#include "stdlib.h"
 
 #ifndef STACK_POP_CODE
 #if STACK_GROWS_DOWNWARD
@@ -4122,80 +4123,216 @@ load_insn_p (rtx_insn *insn)
     return (GET_CODE (pat) == SET && MEM_P (SET_SRC (pat)));
 }
 
-static bool
-store_insn_p (rtx_insn *insn)
-{
-    if (!INSN_P (insn))
-        return false;
+//static bool
+//store_insn_p (rtx_insn *insn)
+//{
+//    if (!INSN_P (insn))
+//        return false;
+//
+//    rtx pat = PATTERN (insn);
+//    return (GET_CODE (pat) == SET && MEM_P (SET_DEST (pat)));
+//}
 
-    rtx pat = PATTERN (insn);
-    return (GET_CODE (pat) == SET && MEM_P (SET_DEST (pat)));
+static bool reg_block_taken[2] = {false, false};  // Assuming 2 register blocks {a0, a1, a2, a3} and {a4, a5, a6, a7}
+
+bool
+is_live_outside(basic_block bb, unsigned regno)
+{
+  basic_block bb_iter;
+  bitmap live_in, live_out;
+
+  // Iterate through all basic blocks in the current function
+  FOR_EACH_BB_FN(bb_iter, cfun)
+  {
+    // Skip the given basic block
+    if (bb == bb_iter)
+      continue;
+
+    // Get the live-in and live-out sets for the current basic block
+    live_in = DF_LR_IN(bb_iter);
+    live_out = DF_LR_OUT(bb_iter);
+
+    // Check if the register is live in or live out of the current basic block
+    if ((live_in && bitmap_bit_p(live_in, regno)) || (live_out && bitmap_bit_p(live_out, regno)))
+      return true;  // The register is live outside the given basic block
+  }
+
+  return false;  // The register is not live outside the given basic block
 }
 
-static void
-hoist_loads ()
+
+bool
+is_register_block_available(rtx reg_block[], basic_block bb)
+{
+  // Check if any register from the block is live outside the current block
+  for (int i = 0; i < 4; i++)
+    if (is_live_outside(bb, REGNO(reg_block[i])))
+      return false;
+
+  return true;
+}
+
+void
+emit_vle_with_registers(rtx reg_block[], rtx mem_operand, basic_block bb)
+{
+  rtx_insn *vle_insn = as_a <rtx_insn *> (
+      gen_vle (reg_block[0], mem_operand, reg_block[1], reg_block[2], reg_block[3]));
+  emit_insn_after(vle_insn, BB_HEAD(bb));
+}
+
+void
+emit_vse_with_registers(rtx reg_block[], rtx mem_operand, basic_block bb)
+{
+  rtx_insn *vse_insn = as_a <rtx_insn *> (
+      gen_vse (mem_operand, reg_block[0], reg_block[1], reg_block[2], reg_block[3]));
+  emit_insn_before(vse_insn, BB_END(bb));
+}
+
+void
+replace_with_new_registers(rtx reg_block[], rtx old_regs[], basic_block bb)
+{
+  rtx_insn *insn;
+
+  // Iterate through all the instructions in the basic block
+  FOR_BB_INSNS(bb, insn)
+  {
+    if(!insn || !INSN_P (insn))
+      continue;
+
+    // Check if the instruction uses any of the old registers
+    for (int i = 0; i < 4; i++)
+      replace_rtx (PATTERN (insn), old_regs[i], reg_block[i], true);
+  }
+}
+
+static void del_insn(rtx_insn *insn)
+{
+  df_insn_delete (insn);
+  remove_insn (insn);
+  insn->set_deleted ();
+}
+
+int compare_mem_addresses(const void *a, const void *b)
+{
+  rtx mem_a = SET_SRC(PATTERN(*(rtx_insn **)a));
+  rtx mem_b = SET_SRC(PATTERN(*(rtx_insn **)b));
+
+  rtx base_reg_a, base_reg_b;
+  int offset_a = 0, offset_b = 0;
+
+  if (GET_CODE(mem_a) == PLUS)
+  {
+    base_reg_a = XEXP(mem_a, 0);
+    offset_a = INTVAL(XEXP(mem_a, 1));
+  }
+  else
+  {
+    base_reg_a = mem_a;
+  }
+
+  if (GET_CODE(mem_b) == PLUS)
+  {
+    base_reg_b = XEXP(mem_b, 0);
+    offset_b = INTVAL(XEXP(mem_b, 1));
+  }
+  else
+  {
+    base_reg_b = mem_b;
+  }
+
+  int reg_num_a = REGNO(base_reg_a);
+  int reg_num_b = REGNO(base_reg_b);
+
+  // Compare by register number first
+  if (reg_num_a != reg_num_b)
+  {
+    return reg_num_a - reg_num_b;
+  }
+
+  // If register numbers are the same, compare by offset
+  return offset_a - offset_b;
+}
+
+
+
+static
+void hoist_loads()
 {
   basic_block bb;
-  rtx_insn *insn, *next_insn;
-  rtx reg_operands_st[40], mem_operands_st[40];
-  rtx reg_operands_ld[40], mem_operands_ld[40];
-  int sw_count = 0;
+  rtx_insn *insn;
+  rtx_insn *ld[40];
   int ld_count = 0;
+
+  rtx register_blocks[][4]= {
+      { gen_rtx_REG (SImode, 10), gen_rtx_REG (SImode, 11), gen_rtx_REG (SImode, 12), gen_rtx_REG (SImode, 13)},
+      { gen_rtx_REG (SImode, 14), gen_rtx_REG (SImode, 15), gen_rtx_REG (SImode, 16), gen_rtx_REG (SImode, 17)}
+  };
 
   FOR_EACH_BB_FN (bb, cfun)
   {
-    rtx_insn *last_insn = BB_END (bb);
     FOR_BB_INSNS (bb, insn)
     {
-      if (store_insn_p (insn))
-      {
-        rtx pat = PATTERN (insn);
-        /* Capture the operands from the sw instruction */
-        reg_operands_st[sw_count] = SET_SRC (pat);
-        mem_operands_st[sw_count] = SET_DEST (pat);
-        sw_count++;
-
-        df_insn_delete (insn);
-        remove_insn (insn);
-        insn->set_deleted ();
-      }
-      else if (load_insn_p (insn))
-      {
-        rtx pat = PATTERN (insn);
-        /* Capture the operands from the lw instruction */
-        reg_operands_ld[ld_count] = SET_DEST (pat);
-        mem_operands_ld[ld_count] = SET_SRC (pat);
-        ld_count++;
-
-        df_insn_delete (insn);
-        remove_insn (insn);
-        insn->set_deleted ();
-      }
+      if (load_insn_p (insn))
+        ld[ld_count++] = insn;
     }
 
-    if (ld_count >= 4)
-    {
-      for (int i = 0; i < ld_count; i += 4)
-      {
-        rtx_insn *vle_insn = as_a <rtx_insn *> (
-            gen_vle (reg_operands_ld[i],mem_operands_ld[i],
-                     reg_operands_ld[i + 1], reg_operands_ld[i + 2], reg_operands_ld[i + 3]));
-        emit_insn_after(vle_insn, BB_HEAD (bb));
-      }
-    }
+    qsort(ld, ld_count, sizeof(rtx_insn *), compare_mem_addresses);
 
-    if (sw_count >= 4)
+    for(int i=0; i<ld_count; i++)
+      fprintf(dump_file, "ld[%d] = %d\n", i, INSN_UID(ld[i]));
+
+    for (int i = 0; i < 1; i++) // Assuming 2 register blocks {a0, a1, a2, a3} and {a4, a5, a6, a7}
     {
-      for (int i = 0; i < sw_count; i += 4)
+      if (!reg_block_taken[i] && is_register_block_available(register_blocks[i], bb))
       {
-        rtx_insn *vse_insn = as_a <rtx_insn *> (
-            gen_vse (mem_operands_st[i], reg_operands_st[i],
-                     reg_operands_st[i + 1], reg_operands_st[i + 2], reg_operands_st[i + 3]));
-        emit_insn_before(vse_insn, BB_END (bb));
+        reg_block_taken[i] = true;
+
+        fprintf(dump_file, "Using register block %d for vle\n", i);
+
+        rtx reg_operands[] = {NULL, NULL, NULL, NULL};
+        rtx src = NULL;
+
+        for (int i = 0; i < ld_count - 3; i++)
+        {
+          rtx mem0 = SET_SRC(PATTERN(ld[i]));
+          rtx mem1 = SET_SRC(PATTERN(ld[i + 1]));
+          rtx mem2 = SET_SRC(PATTERN(ld[i + 2]));
+          rtx mem3 = SET_SRC(PATTERN(ld[i + 3]));
+
+          int diff0 = INTVAL(XEXP(XEXP(mem1, 0), 1)) - INTVAL(XEXP(XEXP(mem0, 0), 1));
+          int diff1 = INTVAL(XEXP(XEXP(mem2, 0), 1)) - INTVAL(XEXP(XEXP(mem1, 0), 1));
+          int diff2 = INTVAL(XEXP(XEXP(mem3, 0), 1)) - INTVAL(XEXP(XEXP(mem2, 0), 1));
+
+          fprintf(dump_file, "%d) diff0 = %d, diff1 = %d, diff2 = %d\n", i, diff0, diff1, diff2);
+
+          if (diff0 == 4 && diff1 == 4 && diff2 == 4)  // Assuming 4 bytes apart for 32-bit loads
+          {
+            fprintf(dump_file, "%d) Found 4 loads from consecutive memory locations\n", i);
+            // Found 4 loads from consecutive memory locations
+            for (int j = 0; j < 4; j++) {
+              reg_operands[j] = SET_DEST(PATTERN(ld[i + j]));
+              del_insn(ld[i + j]);
+              ld[j] = ld[j + 4];
+            }
+
+            ld_count -= 4;
+
+            // Set src to the first memory location of the load with the lowest address
+            src = mem0;
+
+            // Call the functions
+            replace_with_new_registers(register_blocks[i], reg_operands, bb);
+            emit_vle_with_registers(register_blocks[i], src, bb);
+
+            // Break out of the loop
+            break;
+          }
+        }
       }
     }
   }
 }
+
 
 /* Perform the peephole2 optimization pass.  */
 
