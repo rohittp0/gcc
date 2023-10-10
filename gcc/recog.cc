@@ -4283,11 +4283,11 @@ void hoist_loads()
     for(int i=0; i<ld_count; i++)
       fprintf(dump_file, "ld[%d] = %d\n", i, INSN_UID(ld[i]));
 
-    for (int i = 0; i < 2; i++) // Assuming 2 register blocks {a0, a1, a2, a3} and {a4, a5, a6, a7}
+    for (int j = 0; i < 2; j++) // Assuming 2 register blocks {a0, a1, a2, a3} and {a4, a5, a6, a7}
     {
-      if (!reg_block_taken[i] && is_register_block_available(register_blocks[i], bb))
+      if (!reg_block_taken[j] && is_register_block_available(register_blocks[j], bb))
       {
-        reg_block_taken[i] = true;
+        reg_block_taken[j] = true;
 
         fprintf(dump_file, "Using register block %d for vle\n", i);
 
@@ -4311,10 +4311,10 @@ void hoist_loads()
           {
             fprintf(dump_file, "%d) Found 4 loads from consecutive memory locations\n", i);
             // Found 4 loads from consecutive memory locations
-            for (int j = 0; j < 4; j++) {
-              reg_operands[j] = SET_DEST(PATTERN(ld[i + j]));
-              del_insn(ld[i + j]);
-              ld[j] = ld[j + 4];
+            for (int k = 0; k < 4; k++) {
+              reg_operands[k] = SET_DEST(PATTERN(ld[k + j]));
+              del_insn(ld[k + j]);
+              ld[k] = ld[k + 4];
             }
 
             ld_count -= 4;
@@ -4323,8 +4323,8 @@ void hoist_loads()
             src = mem0;
 
             // Call the functions
-            replace_with_new_registers(register_blocks[i], reg_operands, bb);
-            emit_vle_with_registers(register_blocks[i], src, bb);
+            replace_with_new_registers(register_blocks[j], reg_operands, bb);
+            emit_vle_with_registers(register_blocks[j], src, bb);
 
             // Break out of the loop
             break;
