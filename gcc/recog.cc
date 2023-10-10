@@ -4217,40 +4217,42 @@ int compare_mem_addresses(const void *a, const void *b)
   rtx mem_a = SET_SRC(PATTERN(*(rtx_insn **)a));
   rtx mem_b = SET_SRC(PATTERN(*(rtx_insn **)b));
 
-  rtx base_reg_a, base_reg_b;
-  int offset_a = 0, offset_b = 0;
+  fprintf(dump_file, "Comparing %d vs %d:\n", INSN_UID(*(rtx_insn **)a), INSN_UID(*(rtx_insn **)b));
 
-  if (GET_CODE(mem_a) == PLUS)
-  {
-    base_reg_a = XEXP(mem_a, 0);
-    offset_a = INTVAL(XEXP(mem_a, 1));
-  }
-  else
-  {
-    base_reg_a = mem_a;
-  }
+  int reg_num_a = 0;
+  int reg_num_b = 0;
+  int of_a = 0;
+  int of_b = 0;
 
-  if (GET_CODE(mem_b) == PLUS)
-  {
-    base_reg_b = XEXP(mem_b, 0);
-    offset_b = INTVAL(XEXP(mem_b, 1));
-  }
-  else
-  {
-    base_reg_b = mem_b;
+  if (GET_CODE(XEXP(mem_a, 0)) == REG) {
+    reg_num_a = REGNO(XEXP(mem_a, 0));
+    of_a = 0;
+  } else if (GET_CODE(XEXP(mem_a, 0)) == PLUS) {
+    reg_num_a = REGNO(XEXP(XEXP(mem_a, 0), 0));
+    of_a = INTVAL(XEXP(XEXP(mem_a, 0), 1));
   }
 
-  int reg_num_a = REGNO(base_reg_a);
-  int reg_num_b = REGNO(base_reg_b);
+  if (GET_CODE(XEXP(mem_b, 0)) == REG) {
+    reg_num_b = REGNO(XEXP(mem_b, 0));
+    of_b = 0;
+  } else if (GET_CODE(XEXP(mem_b, 0)) == PLUS) {
+    reg_num_b = REGNO(XEXP(XEXP(mem_b, 0), 0));
+    of_b = INTVAL(XEXP(XEXP(mem_b, 0), 1));
+  }
+
+  fprintf(dump_file, "reg_num_a = %d, reg_num_b = %d\n", reg_num_a, reg_num_b);
+  fprintf(dump_file, "of_a = %d, of_b = %d\n", of_a, of_b);
 
   // Compare by register number first
   if (reg_num_a != reg_num_b)
   {
+    fprintf(dump_file, "Result: %d\n", reg_num_a - reg_num_b);
     return reg_num_a - reg_num_b;
   }
 
   // If register numbers are the same, compare by offset
-  return offset_a - offset_b;
+  fprintf(dump_file, "Result: %d\n", of_a - of_b);
+  return of_a - of_b;
 }
 
 
@@ -4281,7 +4283,7 @@ void hoist_loads()
     for(int i=0; i<ld_count; i++)
       fprintf(dump_file, "ld[%d] = %d\n", i, INSN_UID(ld[i]));
 
-    for (int i = 0; i < 1; i++) // Assuming 2 register blocks {a0, a1, a2, a3} and {a4, a5, a6, a7}
+    for (int i = 0; i < 2; i++) // Assuming 2 register blocks {a0, a1, a2, a3} and {a4, a5, a6, a7}
     {
       if (!reg_block_taken[i] && is_register_block_available(register_blocks[i], bb))
       {
