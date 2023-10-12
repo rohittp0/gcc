@@ -4133,7 +4133,12 @@ load_insn_p (rtx_insn *insn)
 //    return (GET_CODE (pat) == SET && MEM_P (SET_DEST (pat)));
 //}
 
-static bool reg_block_taken[2] = {false, false};  // Assuming 2 register blocks {a0, a1, a2, a3} and {a4, a5, a6, a7}
+static void del_insn(rtx_insn *insn)
+{
+  df_insn_delete (insn);
+  remove_insn (insn);
+  insn->set_deleted ();
+}
 
 bool
 is_live_outside(basic_block bb, unsigned regno)
@@ -4188,6 +4193,37 @@ emit_vse_with_registers(rtx reg_block[], rtx mem_operand, basic_block bb)
   emit_insn_before(vse_insn, BB_END(bb));
 }
 
+rtx replace_register_recursive(rtx x, rtx old_reg, rtx new_reg)
+{
+  int i, j;
+  const char *fmt;
+
+  // Base case: if x is NULL, return
+  if (!x) return x;
+
+  // If x is the old register, return the new register
+  if (x == old_reg) return new_reg;
+
+  // Otherwise, recursively process each sub-expression of x
+  fmt = GET_RTX_FORMAT(GET_CODE(x));
+  for (i = GET_RTX_LENGTH(GET_CODE(x)) - 1; i >= 0; i--)
+  {
+    if (fmt[i] == 'e')
+    {
+      XEXP(x, i) = replace_register_recursive(XEXP(x, i), old_reg, new_reg);
+    }
+    else if (fmt[i] == 'E')
+    {
+      for (j = XVECLEN(x, i) - 1; j >= 0; j--)
+      {
+        XVECEXP(x, i, j) = replace_register_recursive(XVECEXP(x, i, j), old_reg, new_reg);
+      }
+    }
+  }
+
+  return x;
+}
+
 void
 replace_with_new_registers(rtx reg_block[], rtx old_regs[], basic_block bb)
 {
@@ -4201,15 +4237,31 @@ replace_with_new_registers(rtx reg_block[], rtx old_regs[], basic_block bb)
 
     // Check if the instruction uses any of the old registers
     for (int i = 0; i < 4; i++)
-      replace_rtx (PATTERN (insn), old_regs[i], reg_block[i], true);
+    {
+      rtx new_pattern = replace_register_recursive(PATTERN(insn), old_regs[i], reg_block[i]);
+      if (new_pattern != PATTERN(insn))
+      {
+        emit_insn_after(new_pattern, insn);
+        del_insn(insn);
+      }
+    }
   }
 }
 
-static void del_insn(rtx_insn *insn)
+int get_reg_no(rtx mem)
 {
-  df_insn_delete (insn);
-  remove_insn (insn);
-  insn->set_deleted ();
+  if (GET_CODE(XEXP(mem, 0)) == REG)
+    return REGNO(XEXP(mem, 0));
+  else if (GET_CODE(XEXP(mem, 0)) == PLUS)
+    return REGNO(XEXP(XEXP(mem, 0), 0));
+}
+
+int get_offset(rtx mem)
+{
+  if (GET_CODE(XEXP(mem, 0)) == REG)
+    return -1;
+  else if (GET_CODE(XEXP(mem, 0)) == PLUS)
+    return INTVAL(XEXP(XEXP(mem, 0), 1));
 }
 
 int compare_mem_addresses(const void *a, const void *b)
@@ -4217,45 +4269,15 @@ int compare_mem_addresses(const void *a, const void *b)
   rtx mem_a = SET_SRC(PATTERN(*(rtx_insn **)a));
   rtx mem_b = SET_SRC(PATTERN(*(rtx_insn **)b));
 
-  fprintf(dump_file, "Comparing %d vs %d:\n", INSN_UID(*(rtx_insn **)a), INSN_UID(*(rtx_insn **)b));
-
-  int reg_num_a = 0;
-  int reg_num_b = 0;
-  int of_a = 0;
-  int of_b = 0;
-
-  if (GET_CODE(XEXP(mem_a, 0)) == REG) {
-    reg_num_a = REGNO(XEXP(mem_a, 0));
-    of_a = 0;
-  } else if (GET_CODE(XEXP(mem_a, 0)) == PLUS) {
-    reg_num_a = REGNO(XEXP(XEXP(mem_a, 0), 0));
-    of_a = INTVAL(XEXP(XEXP(mem_a, 0), 1));
-  }
-
-  if (GET_CODE(XEXP(mem_b, 0)) == REG) {
-    reg_num_b = REGNO(XEXP(mem_b, 0));
-    of_b = 0;
-  } else if (GET_CODE(XEXP(mem_b, 0)) == PLUS) {
-    reg_num_b = REGNO(XEXP(XEXP(mem_b, 0), 0));
-    of_b = INTVAL(XEXP(XEXP(mem_b, 0), 1));
-  }
-
-  fprintf(dump_file, "reg_num_a = %d, reg_num_b = %d\n", reg_num_a, reg_num_b);
-  fprintf(dump_file, "of_a = %d, of_b = %d\n", of_a, of_b);
+  int reg_num_a = get_reg_no(mem_a);
+  int reg_num_b = get_reg_no(mem_b);
 
   // Compare by register number first
   if (reg_num_a != reg_num_b)
-  {
-    fprintf(dump_file, "Result: %d\n", reg_num_a - reg_num_b);
     return reg_num_a - reg_num_b;
-  }
 
-  // If register numbers are the same, compare by offset
-  fprintf(dump_file, "Result: %d\n", of_a - of_b);
-  return of_a - of_b;
+  return get_offset(mem_a) - get_offset(mem_b);
 }
-
-
 
 static
 void hoist_loads()
@@ -4283,14 +4305,20 @@ void hoist_loads()
     for(int i=0; i<ld_count; i++)
       fprintf(dump_file, "ld[%d] = %d\n", i, INSN_UID(ld[i]));
 
-    for (int j = 0; i < 2; j++) // Assuming 2 register blocks {a0, a1, a2, a3} and {a4, a5, a6, a7}
+    bool reg_block_taken[2] = {false, false};
+
+    for (int i=0; i<2; i++)
+      for(int j=0; j <4; j++)
+        for(int k=0; k < ld_count; k++)
+          if (REGNO(register_blocks[i][j]) == get_reg_no(SET_SRC(PATTERN(ld[k])))) {
+            reg_block_taken[i] = true;
+            break;
+          }
+
+    for (int j = 0; j < 2; j++) // Assuming 2 register blocks {a0, a1, a2, a3} and {a4, a5, a6, a7}
     {
       if (!reg_block_taken[j] && is_register_block_available(register_blocks[j], bb))
       {
-        reg_block_taken[j] = true;
-
-        fprintf(dump_file, "Using register block %d for vle\n", i);
-
         rtx reg_operands[] = {NULL, NULL, NULL, NULL};
         rtx src = NULL;
 
@@ -4305,15 +4333,13 @@ void hoist_loads()
           int diff1 = INTVAL(XEXP(XEXP(mem2, 0), 1)) - INTVAL(XEXP(XEXP(mem1, 0), 1));
           int diff2 = INTVAL(XEXP(XEXP(mem3, 0), 1)) - INTVAL(XEXP(XEXP(mem2, 0), 1));
 
-          fprintf(dump_file, "%d) diff0 = %d, diff1 = %d, diff2 = %d\n", i, diff0, diff1, diff2);
-
           if (diff0 == 4 && diff1 == 4 && diff2 == 4)  // Assuming 4 bytes apart for 32-bit loads
           {
-            fprintf(dump_file, "%d) Found 4 loads from consecutive memory locations\n", i);
+            fprintf(dump_file, "%d-%d) Found 4 loads from consecutive memory locations\n",j, i);
             // Found 4 loads from consecutive memory locations
             for (int k = 0; k < 4; k++) {
-              reg_operands[k] = SET_DEST(PATTERN(ld[k + j]));
-              del_insn(ld[k + j]);
+              reg_operands[k] = SET_DEST(PATTERN(ld[k + i]));
+              del_insn(ld[k + i]);
               ld[k] = ld[k + 4];
             }
 
