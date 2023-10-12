@@ -60,6 +60,10 @@ struct target_recog default_target_recog;
 struct target_recog *this_target_recog = &default_target_recog;
 #endif
 
+#define dprintf(format, ...) \
+  if(dump_file) \
+    fprintf (dump_file, format, ##__VA_ARGS__)
+
 /* Nonzero means allow operands to be volatile.
    This should be 0 if you are generating rtl, such as if you are calling
    the functions in optabs.cc and expmed.cc (most of the time).
@@ -4303,7 +4307,7 @@ void hoist_loads()
     qsort(ld, ld_count, sizeof(rtx_insn *), compare_mem_addresses);
 
     for(int i=0; i<ld_count; i++)
-      fprintf(dump_file, "ld[%d] = %d\n", i, INSN_UID(ld[i]));
+      dprintf( "ld[%d] = %d\n", i, INSN_UID(ld[i]));
 
     bool reg_block_taken[2] = {false, false};
 
@@ -4335,7 +4339,7 @@ void hoist_loads()
 
           if (diff0 == 4 && diff1 == 4 && diff2 == 4)  // Assuming 4 bytes apart for 32-bit loads
           {
-            fprintf(dump_file, "%d-%d) Found 4 loads from consecutive memory locations\n",j, i);
+            dprintf( "%d-%d) Found 4 loads from consecutive memory locations\n",j, i);
             // Found 4 loads from consecutive memory locations
             for (int k = 0; k < 4; k++) {
               reg_operands[k] = SET_DEST(PATTERN(ld[k + i]));
